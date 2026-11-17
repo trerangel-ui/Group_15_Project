@@ -4,7 +4,7 @@ import pandas as pd
 import yfinance as yf
 
 # Stock vs crypto panel: does crypto protect a stock investor when the stock falls?
-# Two views: how far each one falls from its peak, and the rolling correlation of daily returns.
+# Two views: how far each one falls from its peak, and the correlation of their daily returns.
 
 CRYPTOS = {"Bitcoin": "BTC-USD", "Ethereum": "ETH-USD"}
 
@@ -33,9 +33,10 @@ def make_crypto_chart(ticker, crypto, period, view):
 
     crypto_fig, crypto_ax = plt.subplots(figsize=(8, 3.2))
 
-    if view == "Rolling correlation":
+    if view == "Correlation":
         window = min(60, max(10, len(returns) // 3))  # 60 days, shorter for short periods
         corr = returns["Stock"].rolling(window).corr(returns[crypto]).dropna()
+        overall = returns["Stock"].corr(returns[crypto])  # one number for the whole period
 
         crypto_ax.fill_between(corr.index, corr, 0, where=corr >= 0, interpolate=True,
                                color="#E07B39", alpha=0.35, label="Move together")
@@ -43,6 +44,8 @@ def make_crypto_chart(ticker, crypto, period, view):
                                color="#2C7FB8", alpha=0.35, label="Opposite moves")
         crypto_ax.plot(corr.index, corr, color="#333333", linewidth=1)
         crypto_ax.axhline(0, color="#555555", linewidth=0.8)
+        crypto_ax.axhline(overall, color="#333333", linestyle="--", linewidth=1,
+                          label=f"Whole period: {overall:.2f}")
         crypto_ax.set_ylim(-1, 1)
         crypto_ax.set_title(f"{ticker} vs {crypto}: {window}-day rolling correlation")
         crypto_ax.set_ylabel("Correlation")
@@ -102,7 +105,7 @@ def build_crypto_panel(ticker_input, period_input, load_button):
         gr.Markdown("### Stock vs crypto")
         with gr.Row():
             crypto_input = gr.Radio(choices=["Bitcoin", "Ethereum"], value="Bitcoin", label="Crypto")
-            view_input = gr.Radio(choices=["Falls from peak", "Rolling correlation"],
+            view_input = gr.Radio(choices=["Falls from peak", "Correlation"],
                                   value="Falls from peak", label="View")
         crypto_plot = gr.Plot(value=placeholder_plot("Enter a ticker and select Load charts"),
                               label="Stock vs crypto")
