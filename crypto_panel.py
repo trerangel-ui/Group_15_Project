@@ -13,17 +13,15 @@ def get_close(symbol, period):
     data = yf.Ticker(symbol).history(period=period, auto_adjust=False)
     if data.empty or data["Close"].dropna().empty:
         raise ValueError(f"No closing-price data was returned for {symbol}.")
-    close = data["Close"].dropna()
-    # Stocks and cryptos use different time zones, so only keep the date
-    close.index = pd.to_datetime(close.index.date)
-    return close
+    return data["Close"].dropna()
 
 
 def make_crypto_chart(ticker, crypto, period, view):
     stock_close = get_close(ticker, period)
     crypto_close = get_close(CRYPTOS[crypto], period)
 
-    # Crypto trades every day but stocks don't, so dropna keeps the stock's trading days
+    # Crypto trades every day but stocks don't, so line the crypto up on the stock's trading days
+    crypto_close = crypto_close.reindex(stock_close.index, method="ffill")
     df = pd.DataFrame({"Stock": stock_close, crypto: crypto_close}).dropna()
     if len(df) < 15:
         raise ValueError("Not enough trading days to compare. Try a longer period.")
@@ -38,17 +36,14 @@ def make_crypto_chart(ticker, crypto, period, view):
         corr = returns["Stock"].rolling(window).corr(returns[crypto]).dropna()
         overall = returns["Stock"].corr(returns[crypto])  # one number for the whole period
 
-        crypto_ax.fill_between(corr.index, corr, 0, where=corr >= 0, interpolate=True,
-                               color="#E07B39", alpha=0.35, label="Move together")
-        crypto_ax.fill_between(corr.index, corr, 0, where=corr < 0, interpolate=True,
-                               color="#2C7FB8", alpha=0.35, label="Opposite moves")
-        crypto_ax.plot(corr.index, corr, color="#333333", linewidth=1)
+        # Orange = they move together, blue = they move in opposite directions
+        corr_colors = ["#E07B39" if value >= 0 else "#2C7FB8" for value in corr]
+        crypto_ax.bar(corr.index, corr, color=corr_colors, width=1.5)
         crypto_ax.axhline(0, color="#555555", linewidth=0.8)
         crypto_ax.axhline(overall, color="#333333", linestyle="--", linewidth=1,
                           label=f"Whole period: {overall:.2f}")
-        crypto_ax.set_ylim(-1, 1)
         crypto_ax.set_title(f"{ticker} vs {crypto}: {window}-day rolling correlation")
-        crypto_ax.set_ylabel("Correlation")
+        crypto_ax.set_ylabel("Correlation\n(orange = together)")
     else:
         crypto_color = "#F2A900" if crypto == "Bitcoin" else "#7A6FD0"
         crypto_ax.fill_between(drawdown.index, drawdown[crypto], 0, color=crypto_color, alpha=0.3, label=crypto)
@@ -58,15 +53,17 @@ def make_crypto_chart(ticker, crypto, period, view):
 
         # Label the stock's worst day and where the crypto was that day
         worst_day = drawdown["Stock"].idxmin()
-        on_right = drawdown.index.get_loc(worst_day) > len(drawdown) * 0.7
+        on_right = worst_day > drawdown.index[int(len(drawdown) * 0.7)]
+        # Put the label under the point, unless the stock is the lowest line on the chart
+        below = drawdown["Stock"].min() > drawdown[crypto].min()
         crypto_ax.annotate(
             f"{ticker} worst: {drawdown['Stock'].min():.1f}%\n"
             f"{crypto} that day: {drawdown.loc[worst_day, crypto]:.1f}%",
             xy=(worst_day, drawdown["Stock"].min()),
-            xytext=(-15 if on_right else 15, -12),
+            xytext=(-15 if on_right else 15, -12 if below else 12),
             textcoords="offset points",
             ha="right" if on_right else "left",
-            va="top",
+            va="top" if below else "bottom",
             fontsize=8,
             bbox={"boxstyle": "round", "facecolor": "white", "edgecolor": "none", "alpha": 0.85},
             arrowprops={"arrowstyle": "->", "color": "#555555"},
