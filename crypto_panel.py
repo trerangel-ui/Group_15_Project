@@ -3,12 +3,15 @@
 Question asked by this panel: is crypto a diversifier for a stock investor,
 or does it fall at the same time as the stock?
 
-One chart: the drawdown from peak (%) of the stock and of the crypto
-(filled area chart), with the stock's worst day annotated. The correlation
-of their daily returns is shown in the title and explained in the summary.
+One chart slot, two views (chosen with the "View" control):
+1. Falls from peak: the drawdown (%) of the stock and of the crypto
+   (filled area chart), with the stock's worst day annotated.
+2. Rolling correlation: the 60-day correlation of their daily returns
+   (bar chart): green = they move in opposite directions (crypto diversifies),
+   red = they move together.
 
 The panel reuses the dashboard's ticker, period and Load button, and adds
-a Bitcoin / Ethereum choice.
+two controls of its own: the crypto (Bitcoin / Ethereum) and the view.
 """
 
 import gradio as gr
@@ -20,6 +23,8 @@ import yfinance as yf
 CRYPTOS = {"Bitcoin": "BTC-USD", "Ethereum": "ETH-USD"}
 CRYPTO_COLORS = {"Bitcoin": "#F2A900", "Ethereum": "#7A6FD0"}
 STOCK_COLOR = "#176B87"
+VIEWS = ["Falls from peak", "Rolling correlation"]
+ROLLING_WINDOW = 60  # trading days, about 3 months
 
 
 def get_closing_prices(symbol, period):
@@ -69,23 +74,15 @@ def summarise(ticker, crypto, dd, correlation):
     )
 
 
-def make_crypto_chart(ticker, crypto, period):
-    """Build the chart and its summary for the chosen inputs."""
-    prices = load_comparison(ticker, crypto, period)
-    returns = prices.pct_change().dropna()
-    correlation = returns["Stock"].corr(returns[crypto])
-    dd = drawdown(prices)
-
-    fig, ax = plt.subplots(figsize=(8, 3.2))
-
-    # Drawdowns: how far each asset is below its previous peak
+def draw_drawdowns(ax, ticker, crypto, dd, correlation):
+    """View 1: how far each asset is below its previous peak."""
     ax.fill_between(dd.index, dd["Stock"], 0, color=STOCK_COLOR, alpha=0.35, label=ticker)
     ax.fill_between(dd.index, dd[crypto], 0, color=CRYPTO_COLORS[crypto], alpha=0.35, label=crypto)
     ax.set_title(f"{ticker} vs {crypto}: fall from peak")
     ax.set_ylabel("Drawdown from peak (%)")
     ax.legend(frameon=False, loc="lower left")
 
-    # Correlation of daily returns, shown in the top-right corner
+    # Correlation of daily returns, shown in the bottom-right corner
     ax.text(
         0.99, 0.04, f"Correlation of daily returns: {correlation:.2f}",
         transform=ax.transAxes, ha="right", va="bottom", fontsize=8, color="#333333",
@@ -105,6 +102,38 @@ def make_crypto_chart(ticker, crypto, period):
         arrowprops={"arrowstyle": "->", "color": "#555555"},
     )
 
+
+def draw_rolling_correlation(ax, ticker, crypto, rolling_corr):
+    """View 2: correlation of daily returns over a moving 60-day window."""
+    corr_colors = ["#42A38A" if value < 0 else "#D45D5D" for value in rolling_corr]
+    ax.bar(rolling_corr.index, rolling_corr, color=corr_colors, width=1.5)
+    ax.axhline(0, color="#555555", linewidth=0.8)
+    ax.set_ylim(-1, 1)
+    ax.set_title(f"{ticker} vs {crypto}: {ROLLING_WINDOW}-day rolling correlation")
+    ax.set_ylabel("Correlation")
+    ax.text(
+        0.99, 0.96, "red = move together, green = opposite moves",
+        transform=ax.transAxes, ha="right", va="top", fontsize=8, color="#333333",
+    )
+
+
+def make_crypto_chart(ticker, crypto, period, view):
+    """Build the chart for the chosen view, and its summary."""
+    prices = load_comparison(ticker, crypto, period)
+    returns = prices.pct_change().dropna()
+    correlation = returns["Stock"].corr(returns[crypto])
+    dd = drawdown(prices)
+
+    fig, ax = plt.subplots(figsize=(8, 3.2))
+
+    if view == "Rolling correlation":
+        rolling_corr = returns["Stock"].rolling(ROLLING_WINDOW).corr(returns[crypto]).dropna()
+        if rolling_corr.empty:
+            raise ValueError(f"Need more than {ROLLING_WINDOW} trading days. Pick a longer period.")
+        draw_rolling_correlation(ax, ticker, crypto, rolling_corr)
+    else:
+        draw_drawdowns(ax, ticker, crypto, dd, correlation)
+
     ax.grid(axis="y", alpha=0.22)
     ax.tick_params(axis="x", labelrotation=25)
     fig.tight_layout()
@@ -122,13 +151,13 @@ def placeholder(message):
     return figure
 
 
-def update_crypto_panel(ticker, period, crypto):
-    """Called by Gradio when the dashboard is loaded or the crypto choice changes."""
+def update_crypto_panel(ticker, period, crypto, view):
+    """Called by Gradio when the dashboard is loaded or a control of this panel changes."""
     ticker = (ticker or "").strip().upper()
     try:
         if not ticker:
             raise ValueError("Enter a ticker symbol, such as AAPL.")
-        return make_crypto_chart(ticker, crypto, period)
+        return make_crypto_chart(ticker, crypto, period, view)
     except Exception as error:
         return placeholder(str(error)), f"Unable to compare {ticker or 'ticker'} with {crypto}: {error}"
 
@@ -136,18 +165,21 @@ def update_crypto_panel(ticker, period, crypto):
 def build_crypto_panel(ticker_input, period_input, load_button):
     """Add the panel to the dashboard. Call it inside `with demo:`.
 
-    It reuses the dashboard's ticker, period and Load button, and adds one
-    small control of its own: the choice between Bitcoin and Ethereum.
+    It reuses the dashboard's ticker, period and Load button, and adds two
+    controls of its own: the crypto (Bitcoin / Ethereum) and the view.
     """
     with gr.Group():
         gr.Markdown("### Stock vs Crypto")
-        crypto_input = gr.Radio(choices=list(CRYPTOS), value="Bitcoin", label="Crypto")
+        with gr.Row():
+            crypto_input = gr.Radio(choices=list(CRYPTOS), value="Bitcoin", label="Crypto")
+            view_input = gr.Radio(choices=VIEWS, value=VIEWS[0], label="View")
         crypto_plot = gr.Plot(value=placeholder("Enter a ticker and select Load charts"), label="Stock vs crypto")
         crypto_summary = gr.Markdown("Load a ticker to compare it with Bitcoin or Ethereum.")
 
-    inputs = [ticker_input, period_input, crypto_input]
+    inputs = [ticker_input, period_input, crypto_input, view_input]
     outputs = [crypto_plot, crypto_summary]
     load_button.click(fn=update_crypto_panel, inputs=inputs, outputs=outputs)
     crypto_input.change(fn=update_crypto_panel, inputs=inputs, outputs=outputs)
+    view_input.change(fn=update_crypto_panel, inputs=inputs, outputs=outputs)
 
     return crypto_plot
