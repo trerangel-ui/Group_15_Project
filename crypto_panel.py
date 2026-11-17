@@ -7,8 +7,8 @@ One chart slot, two views (chosen with the "View" control):
 1. Falls from peak: the drawdown (%) of the stock and of the crypto
    (filled area chart), with the stock's worst day annotated.
 2. Rolling correlation: the 60-day correlation of their daily returns
-   (bar chart): green = they move in opposite directions (crypto diversifies),
-   red = they move together.
+   (line chart): above 0 = they move together, below 0 = they move in
+   opposite directions (crypto diversifies).
 
 The panel reuses the dashboard's ticker, period and Load button, and adds
 two controls of its own: the crypto (Bitcoin / Ethereum) and the view.
@@ -59,34 +59,42 @@ def drawdown(prices):
 
 
 def summarise(ticker, crypto, dd, correlation):
-    """Short text that tells the story of the chart."""
-    worst_day = dd["Stock"].idxmin()
+    """Short text that tells the story of the chart, in two parts.
+
+    1. Day to day: are the daily returns linked (correlation)?
+    2. In a crash: on the stock's worst day, did the crypto hold up better?
+    """
     if correlation > 0.3:
-        verdict = f"they tend to fall together, so {crypto} does not diversify much"
+        daily = "they tend to move together"
     elif correlation < -0.3:
-        verdict = f"they tend to move in opposite directions, so {crypto} diversifies"
+        daily = "they tend to move in opposite directions"
     else:
-        verdict = f"they are only weakly linked, so {crypto} offers some diversification"
+        daily = "they are only weakly linked"
+
+    worst_day = dd["Stock"].idxmin()
+    stock_fall = dd.loc[worst_day, "Stock"]
+    crypto_fall = dd.loc[worst_day, crypto]
+    if crypto_fall < stock_fall:
+        crash = f"{crypto} did not protect: it was even further below its peak"
+    else:
+        crash = f"{crypto} held up better than the stock"
+
     return (
-        f"Worst {ticker} drawdown: **{dd['Stock'].min():.1f}%** on {worst_day:%d %b %Y}, "
-        f"while {crypto} was **{dd.loc[worst_day, crypto]:.1f}%** below its peak. "
-        f"Correlation of daily returns: **{correlation:.2f}**, {verdict}."
+        f"**Day to day:** correlation of daily returns is **{correlation:.2f}**, so {daily}.  \n"
+        f"**In the worst fall:** on {worst_day:%d %b %Y}, {ticker} was **{-stock_fall:.1f}%** "
+        f"below its peak and {crypto} **{-crypto_fall:.1f}%**, so {crash}. "
+        f"{crypto}'s own worst fall over the period: **{dd[crypto].min():.1f}%** from its peak."
     )
 
 
 def draw_drawdowns(ax, ticker, crypto, dd, correlation):
     """View 1: how far each asset is below its previous peak."""
-    ax.fill_between(dd.index, dd["Stock"], 0, color=STOCK_COLOR, alpha=0.35, label=ticker)
-    ax.fill_between(dd.index, dd[crypto], 0, color=CRYPTO_COLORS[crypto], alpha=0.35, label=crypto)
+    # Crypto as a light area, stock as a solid line on top, so they never mix
+    ax.fill_between(dd.index, dd[crypto], 0, color=CRYPTO_COLORS[crypto], alpha=0.3, label=crypto)
+    ax.plot(dd.index, dd["Stock"], color=STOCK_COLOR, linewidth=1.6, label=ticker)
     ax.set_title(f"{ticker} vs {crypto}: fall from peak")
     ax.set_ylabel("Drawdown from peak (%)")
     ax.legend(frameon=False, loc="lower left")
-
-    # Correlation of daily returns, shown in the bottom-right corner
-    ax.text(
-        0.99, 0.04, f"Correlation of daily returns: {correlation:.2f}",
-        transform=ax.transAxes, ha="right", va="bottom", fontsize=8, color="#333333",
-    )
 
     # Annotation: the stock's worst moment, and where the crypto stood that day
     worst_day = dd["Stock"].idxmin()
@@ -95,26 +103,32 @@ def draw_drawdowns(ax, ticker, crypto, dd, correlation):
     ax.annotate(
         f"{ticker} worst: {dd['Stock'].min():.1f}%\n{crypto} that day: {dd.loc[worst_day, crypto]:.1f}%",
         xy=(worst_day, dd["Stock"].min()),
-        xytext=(-15 if near_right_edge else 15, -5),
+        xytext=(-15 if near_right_edge else 15, -12),
+        va="top",
         textcoords="offset points",
         ha="right" if near_right_edge else "left",
         fontsize=8,
+        bbox={"boxstyle": "round,pad=0.25", "facecolor": "white", "edgecolor": "none", "alpha": 0.85},
         arrowprops={"arrowstyle": "->", "color": "#555555"},
     )
 
 
 def draw_rolling_correlation(ax, ticker, crypto, rolling_corr):
     """View 2: correlation of daily returns over a moving 60-day window."""
-    corr_colors = ["#42A38A" if value < 0 else "#D45D5D" for value in rolling_corr]
-    ax.bar(rolling_corr.index, rolling_corr, color=corr_colors, width=1.5)
+    # Colour-blind friendly: orange above 0 (move together), blue below 0 (opposite moves)
+    ax.fill_between(rolling_corr.index, rolling_corr, 0, where=rolling_corr >= 0,
+                    color="#E07B39", alpha=0.35, interpolate=True)
+    ax.fill_between(rolling_corr.index, rolling_corr, 0, where=rolling_corr < 0,
+                    color="#2C7FB8", alpha=0.35, interpolate=True)
+    ax.plot(rolling_corr.index, rolling_corr, color="#333333", linewidth=1)
     ax.axhline(0, color="#555555", linewidth=0.8)
     ax.set_ylim(-1, 1)
     ax.set_title(f"{ticker} vs {crypto}: {ROLLING_WINDOW}-day rolling correlation")
     ax.set_ylabel("Correlation")
-    ax.text(
-        0.99, 0.96, "red = move together, green = opposite moves",
-        transform=ax.transAxes, ha="right", va="top", fontsize=8, color="#333333",
-    )
+    ax.text(0.01, 0.96, "Above 0: they move together", transform=ax.transAxes,
+            ha="left", va="top", fontsize=8, color="#B4591F")
+    ax.text(0.01, 0.04, "Below 0: they move in opposite directions", transform=ax.transAxes,
+            ha="left", va="bottom", fontsize=8, color="#1F5F8B")
 
 
 def make_crypto_chart(ticker, crypto, period, view):
