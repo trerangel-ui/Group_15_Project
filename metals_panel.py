@@ -141,7 +141,7 @@ plt.close()
 # GRADIO DROP DOWN ----
 
 # Create a graph using the metal selected in Gradio
-def choose_metal(metal, selected_period):
+def choose_metal(metal, selected_period, selected_dates=None):
 
     # Download Apple's prices
     stock_data = yf.Ticker("AAPL").history(period=selected_period)
@@ -152,14 +152,35 @@ def choose_metal(metal, selected_period):
     # Keep daily closing prices for both investments
     stock_daily_close = stock_data["Close"].copy()
     metal_daily_close = metal_data["Close"].copy()
+        
+        # Standardise the dates before calculating returns
+    stock_daily_close.index = stock_daily_close.index.tz_localize(None)
+    stock_daily_close.index = stock_daily_close.index.normalize()
+
+    metal_daily_close.index = metal_daily_close.index.tz_localize(None)
+    metal_daily_close.index = metal_daily_close.index.normalize()
 
 
 
-    # Choose the return frequency based on the selected period
+    # Initially choose frequency based on the period dropdown
     if selected_period in ["1mo", "3mo", "6mo"]:
         frequency = "Daily"
     else:
         frequency = "Weekly"
+
+    # Override frequency when the user zooms into a date range
+    if selected_dates and " to " in selected_dates:
+        start_text, end_text = selected_dates.split(" to ")
+
+        start_date = pd.to_datetime(start_text)
+        end_date = pd.to_datetime(end_text)
+
+        if end_date <= start_date + pd.DateOffset(months=6):
+            frequency = "Daily"
+        else:
+            frequency = "Weekly"
+
+    print("METALS FREQUENCY:", frequency)
 
    
     # Calculate daily percentage returns
@@ -182,17 +203,7 @@ def choose_metal(metal, selected_period):
         stock_returns = stock_weekly_returns
         metal_returns = metal_weekly_returns
 
-        # Standardise Apple's dates
-    stock_returns.index = stock_returns.index.tz_localize(None)
-    stock_returns.index = stock_returns.index.normalize()
 
-    # Standardise the metal's dates
-    metal_returns.index = metal_returns.index.tz_localize(None)
-    metal_returns.index = metal_returns.index.normalize()       
-
-    # Match the date format used for Apple
-    metal_returns.index = metal_returns.index.tz_localize(None)
-    metal_returns.index = metal_returns.index.normalize()
 
     # Combine Apple and the selected metal
     comparison = pd.concat(
@@ -236,7 +247,11 @@ def choose_metal(metal, selected_period):
         hovermode="x unified",
         height=450
     )
+        # Preserve the selected historical range after updating
+    if selected_dates and " to " in selected_dates:
+        fig.update_xaxes(range=[start_date, end_date])
 
+        
     # Add a horizontal reference line at 0%
     fig.add_hline(
         y=0,
@@ -247,26 +262,163 @@ def choose_metal(metal, selected_period):
     return fig
 
 
+def receive_zoom_dates(selected_dates):
+    print("METALS ZOOM RECEIVED:", selected_dates)
 
-demo = gr.Interface(
-    fn=choose_metal,
+with gr.Blocks() as demo:
 
-    inputs=[
-        gr.Dropdown(
-            choices=["Gold", "Silver", "Platinum"],
-            value="Gold",
-            label="Choose a precious metal"
-        ),
+    gr.Markdown("## Apple vs Precious Metals Comparison")
 
-        gr.Dropdown(
-            choices=["1mo", "3mo", "6mo", "1y", "2y", "5y"],
-            value="1mo",
-            label="Choose a time period"
-        )
-    ],
+    # Dropdown to select a precious metal
+    metal_dropdown = gr.Dropdown(
+        choices=["Gold", "Silver", "Platinum"],
+        value="Gold",
+        label="Choose a precious metal"
+    )
 
-    outputs=gr.Plot(label="Metals Comparison")
-)
+    # Dropdown to select the time period
+    period_dropdown = gr.Dropdown(
+        choices=["1mo", "3mo", "6mo", "1y", "2y", "5y"],
+        value="1mo",
+        label="Choose a time period"
+    )
+
+    # Interactive Plotly graph
+    metals_plot = gr.Plot(
+        label="Metals Comparison",
+        elem_id="zoom_chart"
+    )
+
+    # Textbox to receive zoom dates from JavaScript
+    zoom_info = gr.Textbox(
+        label="Selected zoom dates",
+        value="Waiting for zoom...",
+        elem_id="zoom_dates"
+    )
+    # connection for zooming 
+    zoom_info.change(
+        fn=choose_metal,
+        inputs=[metal_dropdown, period_dropdown, zoom_info],
+        outputs=metals_plot
+    )
+   
+
+    # Update graph when the selected metal changes
+    metal_dropdown.change(
+        fn=choose_metal,
+        inputs=[metal_dropdown, period_dropdown],
+        outputs=metals_plot
+    )
+
+    # Update graph when the selected period changes
+    period_dropdown.change(
+        fn=choose_metal,
+        inputs=[metal_dropdown, period_dropdown],
+        outputs=metals_plot
+    )
+
+    # Display the initial graph when the app loads
+    demo.load(
+        fn=choose_metal,
+        inputs=[metal_dropdown, period_dropdown],
+        outputs=metals_plot
+    )
+    
+    # Detect Plotly zoom events using JavaScript
+    demo.load(
+        fn=None,
+        inputs=None,
+        outputs=None,
+        js="""
+        async () => {
+
+            function attachZoomListener() {
+                const chart = document.querySelector(
+                    "#zoom_chart .js-plotly-plot"
+                );
+
+                if (!chart || typeof chart.on !== "function") {
+                    return;
+                }
+
+                // Prevent duplicate listeners
+                if (chart.dataset.zoomListenerAttached === "true") {
+                    return;
+                }
+
+                chart.dataset.zoomListenerAttached = "true";
+
+                chart.on("plotly_relayout", (eventData) => {
+                    console.log("ZOOM DETECTED:", eventData);
+
+                    let start = eventData["xaxis.range[0]"];
+                    let end = eventData["xaxis.range[1]"];
+
+                    // Handle zooming back out
+                    if (eventData["xaxis.autorange"] === true) {
+                        const fullRange = chart._fullData
+                            .flatMap(trace => trace.x || [])
+                            .map(date => new Date(date).getTime())
+                            .filter(Number.isFinite);
+
+                        if (fullRange.length > 0) {
+                            start = new Date(Math.min(...fullRange))
+                                .toISOString();
+                            end = new Date(Math.max(...fullRange))
+                                .toISOString();
+                        }
+                    }
+
+                    if (start && end) {
+                        const textbox = document.querySelector(
+                            "#zoom_dates textarea, #zoom_dates input"
+                        );
+
+                        if (textbox) {
+                            const setter = Object.getOwnPropertyDescriptor(
+                                Object.getPrototypeOf(textbox),
+                                "value"
+                            )?.set;
+
+                            if (setter) {
+                                setter.call(textbox, `${start} to ${end}`);
+
+                                textbox.dispatchEvent(
+                                    new Event("input", { bubbles: true })
+                                );
+
+                                textbox.dispatchEvent(
+                                    new Event("change", { bubbles: true })
+                                );
+                            }
+                        }
+                    }
+                });
+
+                console.log("Zoom listener attached!");
+            }
+
+            // Attach after initial rendering
+            setTimeout(attachZoomListener, 2000);
+
+            // Reattach if Gradio replaces the graph
+            const observer = new MutationObserver(() => {
+                attachZoomListener();
+            });
+
+            const container = document.querySelector("#zoom_chart");
+
+            if (container) {
+                observer.observe(container, {
+                    childList: true,
+                    subtree: true
+                });
+            }
+        }
+        """
+    )
+
 
 demo.launch()
+
 
