@@ -1,3 +1,7 @@
+# ====================================================================================================
+# IMPORTS
+# ====================================================================================================
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
@@ -5,132 +9,111 @@ import gradio as gr
 import matplotlib.dates as mdates
 import plotly.graph_objects as go 
 
-# Precious metals and their Yahoo Finance ticker symbols
+
 metals = {
     "Gold": "GC=F",
     "Silver": "SI=F",
     "Platinum": "PL=F"
 }
 
-# Colours for each precious metal
+
 metal_colours = {
     "Gold": "#D4A017",
     "Silver": "#8A96A3",
     "Platinum": "#0D9488"
 }
 
-# Choose which metal to compare for test!!!!!
-selected_metal = "Platinum"
 
-# Test downloading stock data
+# ====================================================================================================
+# FIRST TESTING
+# ====================================================================================================
 
-ticker = "AAPL"
-period = "1mo"
+# selected_metal = "Platinum"
 
-stock_data = yf.Ticker(ticker).history(period=period)
+# # Test downloading stock data
 
-print(stock_data.head())
+# ticker = "AAPL"
+# period = "1mo"
 
-# Get Apple's closing prices
-stock_close = stock_data["Close"]
+# stock_data = yf.Ticker(ticker).history(period=period)
 
-# Calculate daily percentage changes
-stock_returns = stock_close.pct_change() * 100
+# print(stock_data.head())
 
-# Display the first few results
-print(stock_returns.head())
+# stock_close = stock_data["Close"]
 
-gold_data = yf.Ticker(metals[selected_metal]).history(period=period)
+# stock_returns = stock_close.pct_change() * 100
 
-# Select gold's closing prices
-gold_close = gold_data["Close"]
+# print(stock_returns.head())
 
-# Calculate gold's daily percentage changes
-gold_returns = gold_close.pct_change() * 100
-
-# Display the first five results
-print(f"\n{selected_metal} daily percentage changes:")
-print(gold_returns.head())
+# gold_data = yf.Ticker(metals[selected_metal]).history(period=period)
 
 
+# gold_close = gold_data["Close"]
 
 
-# Match Apple and gold returns by date
+# gold_returns = gold_close.pct_change() * 100
 
-# Remove timezone information so dates can be compared
-stock_returns.index = stock_returns.index.tz_localize(None)
-gold_returns.index = gold_returns.index.tz_localize(None)
+# print(f"\n{selected_metal} daily percentage changes:")
+# print(gold_returns.head())
 
-# Keep only the calendar date
-stock_returns.index = stock_returns.index.normalize()
-gold_returns.index = gold_returns.index.normalize()
+# stock_returns.index = stock_returns.index.tz_localize(None)
+# gold_returns.index = gold_returns.index.tz_localize(None)
 
-# Combine both sets of returns into one table
-combined_returns = pd.concat(
-    [
-        stock_returns.rename("Apple"),
-        gold_returns.rename(selected_metal)
-    ],
-    axis=1
-).dropna()
+# stock_returns.index = stock_returns.index.normalize()
+# gold_returns.index = gold_returns.index.normalize()
 
-# Display the first five matching dates
-print("\nCombined Apple and {selected_metal} returns:")
-print(combined_returns.head())
+# combined_returns = pd.concat(
+#     [
+#         stock_returns.rename("Apple"),
+#         gold_returns.rename(selected_metal)
+#     ],
+#     axis=1
+# ).dropna()
 
+# print("\nCombined Apple and {selected_metal} returns:")
+# print(combined_returns.head())
 
 
+# # Create the graph
+# fig, ax = plt.subplots(figsize=(7, 4))
 
+# ax.scatter(
+#     combined_returns.index,
+#     combined_returns["Apple"],
+#     color="blue",
+#     label="Apple",
+#     s=25
+# )
 
-# Create the graph
-fig, ax = plt.subplots(figsize=(7, 4))
+# ax.scatter(
+#     combined_returns.index,
+#     combined_returns[selected_metal],
+#     color=metal_colours[selected_metal],
+#     label=selected_metal,
+#     s=25
+# )
 
-# Plot Apple's daily returns as blue dots
-ax.scatter(
-    combined_returns.index,
-    combined_returns["Apple"],
-    color="blue",
-    label="Apple",
-    s=25
-)
+# 
+# ax.axhline(0, color="gray", linestyle="--")
 
-# Plot gold's daily returns as gold dots
-ax.scatter(
-    combined_returns.index,
-    combined_returns[selected_metal],
-    color=metal_colours[selected_metal],
-    label=selected_metal,
-    s=25
-)
+# ax.set_xlabel("Date")
+# ax.set_ylabel("Daily Return (%)")
+# ax.set_title(f"Apple vs {selected_metal}: Daily Percentage Returns")
 
-# Add a horizontal line at 0%
-ax.axhline(0, color="gray", linestyle="--")
+# 
+# ax.xaxis.set_major_locator(mdates.AutoDateLocator(maxticks=6))
 
-# Add labels and title
-ax.set_xlabel("Date")
-ax.set_ylabel("Daily Return (%)")
-ax.set_title(f"Apple vs {selected_metal}: Daily Percentage Returns")
+# ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b"))
 
-# Show fewer dates on the X-axis
-ax.xaxis.set_major_locator(mdates.AutoDateLocator(maxticks=6))
+# plt.xticks(rotation=30)
 
-# Display dates in a shorter format
-ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b"))
+# ax.legend()
 
-# Rotate date labels slightly
-plt.xticks(rotation=30)
+# plt.tight_layout()
 
-# Show which dots belong to which investment
-ax.legend()
+# plt.savefig("metals_graph.png")
 
-# Improve spacing
-plt.tight_layout()
-
-# Save the graph as an image
-plt.savefig("metals_graph.png")
-
-# Close the figure
-plt.close()
+# plt.close()
 
 
 
@@ -138,22 +121,43 @@ plt.close()
 
 
 
-# GRADIO DROP DOWN ----
 
-# Create a graph using the metal selected in Gradio
-def choose_metal(metal, selected_period, selected_dates=None):
 
-    # Download Apple's prices
-    stock_data = yf.Ticker("AAPL").history(period=selected_period)
 
-    # Download the selected precious metal's prices
+
+# ====================================================================================================
+# STOCK AND METAL COMPARISON
+# ====================================================================================================
+
+def choose_metal(metal, selected_period, selected_dates=None, stock_ticker="AAPL"):
+
+    stock_ticker = stock_ticker.strip().upper()
+   
+   
+    # Error message
+    if not stock_ticker:
+        raise gr.Error("Please enter a valid stock ticker, such as AAPL or TSLA.")
+
+    stock_data = yf.Ticker(stock_ticker).history(period=selected_period)
+
+    if stock_data.empty or "Close" not in stock_data.columns:
+        raise gr.Error(
+            f"No data found for '{stock_ticker}'. "
+            "Please check the ticker symbol and try again."
+        )
+
     metal_data = yf.Ticker(metals[metal]).history(period=selected_period)
 
-    # Keep daily closing prices for both investments
+  
+    if metal_data.empty or "Close" not in metal_data.columns:
+        raise gr.Error(
+            f"Unable to retrieve {metal} prices. Please try again later."
+        )
+
     stock_daily_close = stock_data["Close"].copy()
     metal_daily_close = metal_data["Close"].copy()
         
-        # Standardise the dates before calculating returns
+    # Remove timezone info / standardise
     stock_daily_close.index = stock_daily_close.index.tz_localize(None)
     stock_daily_close.index = stock_daily_close.index.normalize()
 
@@ -161,14 +165,13 @@ def choose_metal(metal, selected_period, selected_dates=None):
     metal_daily_close.index = metal_daily_close.index.normalize()
 
 
-
-    # Initially choose frequency based on the period dropdown
+    # Use daily returns for shorter periods and weekly for longer ones
     if selected_period in ["1mo", "3mo", "6mo"]:
         frequency = "Daily"
     else:
         frequency = "Weekly"
 
-    # Override frequency when the user zooms into a date range
+    # Adjust the frequency if the user zooms into the graph
     if selected_dates and " to " in selected_dates:
         start_text, end_text = selected_dates.split(" to ")
 
@@ -180,22 +183,18 @@ def choose_metal(metal, selected_period, selected_dates=None):
         else:
             frequency = "Weekly"
 
-    print("METALS FREQUENCY:", frequency)
-
    
-    # Calculate daily percentage returns
+    # Daily / Weekly returns
     stock_daily_returns = stock_daily_close.pct_change() * 100
     metal_daily_returns = metal_daily_close.pct_change() * 100
 
-    # Calculate weekly closing prices
     stock_weekly_close = stock_daily_close.resample("W-FRI").last()
     metal_weekly_close = metal_daily_close.resample("W-FRI").last()
 
-    # Calculate weekly percentage returns
     stock_weekly_returns = stock_weekly_close.pct_change() * 100
     metal_weekly_returns = metal_weekly_close.pct_change() * 100
 
-    # Choose which returns to display initially
+    # Select returns to display
     if frequency == "Daily":
         stock_returns = stock_daily_returns
         metal_returns = metal_daily_returns
@@ -204,29 +203,27 @@ def choose_metal(metal, selected_period, selected_dates=None):
         metal_returns = metal_weekly_returns
 
 
-
-    # Combine Apple and the selected metal
     comparison = pd.concat(
         [
-            stock_returns.rename("Apple"),
+            stock_returns.rename("Stock"),
             metal_returns.rename(metal)
         ],
         axis=1
     ).dropna()
 
-    # Create an interactive Plotly graph
+    # Plotly Graph
     fig = go.Figure()
 
-    # Add Apple's percentage returns
+    # Stock returns
     fig.add_trace(go.Scatter(
         x=comparison.index,
-        y=comparison["Apple"],
+        y=comparison["Stock"],
         mode="markers",
-        name="Apple",
+        name=stock_ticker,
         marker=dict(color="blue", size=6)
     ))
 
-    # Add the selected metal's percentage returns
+    # Metal returns
     fig.add_trace(go.Scatter(
         x=comparison.index,
         y=comparison[metal],
@@ -238,21 +235,20 @@ def choose_metal(metal, selected_period, selected_dates=None):
         )
     ))
 
-    # Add graph labels and formatting
+    # Labels / layout
     fig.update_layout(
-        title=f"Apple vs {metal}: {frequency} Percentage Returns",
+        title=f"{stock_ticker} vs {metal}: {frequency} Percentage Returns",
         xaxis_title="Date",
         yaxis_title=f"{frequency} Return (%)",
         template="plotly_white",
         hovermode="x unified",
         height=450
     )
-        # Preserve the selected historical range after updating
+        # Keep the selected data range after zooming
     if selected_dates and " to " in selected_dates:
         fig.update_xaxes(range=[start_date, end_date])
 
         
-    # Add a horizontal reference line at 0%
     fig.add_hline(
         y=0,
         line_dash="dash",
@@ -262,69 +258,114 @@ def choose_metal(metal, selected_period, selected_dates=None):
     return fig
 
 
-def receive_zoom_dates(selected_dates):
-    print("METALS ZOOM RECEIVED:", selected_dates)
+
+
+
+
+
+
+
+
+
+
+
+
+# ====================================================================================================
+# GRADIO 
+# ====================================================================================================
 
 with gr.Blocks() as demo:
 
-    gr.Markdown("## Apple vs Precious Metals Comparison")
+    gr.Markdown("## Stock vs Precious Metals Comparison")
+   
+   # User inputs
+    stock_input = gr.Textbox(
+        label="Enter a stock ticker",
+        value="AAPL",
+        placeholder="e.g. AAPL, TSLA, MSFT, NVDA"
+    )
 
-    # Dropdown to select a precious metal
     metal_dropdown = gr.Dropdown(
         choices=["Gold", "Silver", "Platinum"],
         value="Gold",
         label="Choose a precious metal"
     )
 
-    # Dropdown to select the time period
     period_dropdown = gr.Dropdown(
         choices=["1mo", "3mo", "6mo", "1y", "2y", "5y"],
         value="1mo",
         label="Choose a time period"
     )
 
-    # Interactive Plotly graph
     metals_plot = gr.Plot(
         label="Metals Comparison",
         elem_id="zoom_chart"
     )
 
-    # Textbox to receive zoom dates from JavaScript
+    # Recieve the slected date range from JavaScript
     zoom_info = gr.Textbox(
         label="Selected zoom dates",
         value="Waiting for zoom...",
         elem_id="zoom_dates"
     )
-    # connection for zooming 
+
+
+    # Updates when user zooms
     zoom_info.change(
         fn=choose_metal,
-        inputs=[metal_dropdown, period_dropdown, zoom_info],
+        inputs=[metal_dropdown, period_dropdown, zoom_info, stock_input],
         outputs=metals_plot
     )
-   
 
-    # Update graph when the selected metal changes
     metal_dropdown.change(
         fn=choose_metal,
-        inputs=[metal_dropdown, period_dropdown],
+        inputs=[metal_dropdown, period_dropdown, gr.State(None), stock_input],
         outputs=metals_plot
     )
 
-    # Update graph when the selected period changes
     period_dropdown.change(
         fn=choose_metal,
-        inputs=[metal_dropdown, period_dropdown],
+        inputs=[metal_dropdown, period_dropdown, gr.State(None), stock_input],
         outputs=metals_plot
     )
 
-    # Display the initial graph when the app loads
+    stock_input.submit(
+        fn=choose_metal,
+        inputs=[metal_dropdown, period_dropdown, gr.State(None), stock_input],
+        outputs=metals_plot
+    )
+
+    # Show graph when dash opens
     demo.load(
         fn=choose_metal,
-        inputs=[metal_dropdown, period_dropdown],
+        inputs=[metal_dropdown, period_dropdown, gr.State(None), stock_input],
         outputs=metals_plot
     )
     
-    # Detect Plotly zoom events using JavaScript
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+
+  
+  
+  
+# ====================================================================================================
+# AUTOMATIC ZOOM FUNCTIONALITY (JavaScript)
+# ====================================================================================================
+  
+  
+    # Listen for changes to the graph's date range
     demo.load(
         fn=None,
         inputs=None,
@@ -349,12 +390,11 @@ with gr.Blocks() as demo:
                 chart.dataset.zoomListenerAttached = "true";
 
                 chart.on("plotly_relayout", (eventData) => {
-                    console.log("ZOOM DETECTED:", eventData);
 
                     let start = eventData["xaxis.range[0]"];
                     let end = eventData["xaxis.range[1]"];
 
-                    // Handle zooming back out
+                    // Reset to the full date range when zooming out
                     if (eventData["xaxis.autorange"] === true) {
                         const fullRange = chart._fullData
                             .flatMap(trace => trace.x || [])
@@ -395,13 +435,12 @@ with gr.Blocks() as demo:
                     }
                 });
 
-                console.log("Zoom listener attached!");
+            
             }
 
-            // Attach after initial rendering
             setTimeout(attachZoomListener, 2000);
 
-            // Reattach if Gradio replaces the graph
+            // keep unchanged
             const observer = new MutationObserver(() => {
                 attachZoomListener();
             });
