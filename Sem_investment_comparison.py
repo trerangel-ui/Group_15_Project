@@ -3,18 +3,28 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-def make_investment_comparison(data, ticker, period):
-
+def make_investment_comparison(data, ticker, period, metal="Gold", crypto="Bitcoin"):
     # Use adjusted stock prices where available
     if "Adj Close" in data.columns:
         stock_close = data["Adj Close"].dropna()
     else:
         stock_close = data["Close"].dropna()
 
-    assets = {
+    crypto_symbols = {
         "Bitcoin": "BTC-USD",
+        "Ethereum": "ETH-USD",
+    }
+
+    metal_symbols = {
+        "Gold": "GC=F",
+        "Silver": "SI=F",
+        "Platinum": "PL=F",
+    }
+
+    assets = {
+        crypto: crypto_symbols[crypto],
         "Treasury Bonds (IEF)": "IEF",
-        "Gold (GLD)": "GLD",
+        metal: metal_symbols[metal],
         "Real Estate (VNQ)": "VNQ",
     }
 
@@ -58,11 +68,11 @@ def make_investment_comparison(data, ticker, period):
     fig = go.Figure()
 
     line_colors = {
-        ticker: "#176B87",
-        "Bitcoin": "#F2A900",
-        "Treasury Bonds (IEF)": "#26966F",
-        "Gold (GLD)": "#D6A72C",
-        "Real Estate (VNQ)": "#E07A3F",
+        ticker: "#176B87",       # Donkerblauw
+        crypto: "#8E44AD",       # Paars
+        "Treasury Bonds (IEF)": "#26966F",  # Groen
+        metal: "#F1C40F",        # Goudgeel
+        "Real Estate (VNQ)": "#E67E22",     # Oranje
     }
 
     for column in returns.columns:
