@@ -112,4 +112,4 @@ def build_crypto_panel(ticker_input, period_input, load_button):
     crypto_input.change(fn=update_crypto_panel, inputs=inputs, outputs=[crypto_plot])
     view_input.change(fn=update_crypto_panel, inputs=inputs, outputs=[crypto_plot])
 
-    return crypto_plot
+    return crypto_plot, crypto_input
