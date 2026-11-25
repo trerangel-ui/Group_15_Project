@@ -1,4 +1,0 @@
-!pip install yfinance
-!pip install gradio
-!pip install pandas
-!pip install matplotlib
