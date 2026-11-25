@@ -188,6 +188,39 @@ def choose_metal(metal, selected_period, selected_dates=None, stock_ticker="AAPL
     stock_daily_returns = stock_daily_close.pct_change() * 100
     metal_daily_returns = metal_daily_close.pct_change() * 100
 
+    # Calculate correlation using aligned daily percentage returns
+    daily_comparison = pd.concat(
+        [
+            stock_daily_returns.rename("Stock"),
+            metal_daily_returns.rename("Metal")
+        ],
+        axis=1
+    ).dropna()
+
+    correlation = daily_comparison["Stock"].corr(
+        daily_comparison["Metal"]
+    )
+
+    if pd.isna(correlation):
+        correlation_text = "Correlation unavailable"
+    else:
+        strength = abs(correlation)
+
+        if strength >= 0.7:
+            description = "Strong"
+        elif strength >= 0.3:
+            description = "Moderate"
+        else:
+            description = "Weak"
+
+        direction = "positive" if correlation >= 0 else "negative"
+
+        correlation_text = (
+            f"Correlation: {correlation:+.2f} "
+            f"({description} {direction})"
+        )
+
+
     stock_weekly_close = stock_daily_close.resample("W-FRI").last()
     metal_weekly_close = metal_daily_close.resample("W-FRI").last()
 
@@ -237,7 +270,12 @@ def choose_metal(metal, selected_period, selected_dates=None, stock_ticker="AAPL
 
     # Labels / layout
     fig.update_layout(
-        title=f"{stock_ticker} vs {metal}: {frequency} Percentage Returns",
+title=dict(
+    text=(
+        f"{stock_ticker} vs {metal}: {frequency} Percentage Returns"
+        f"<br><sup>{correlation_text}</sup>"
+    )
+),
         xaxis_title="Date",
         yaxis_title=f"{frequency} Return (%)",
         template="plotly_white",
@@ -274,190 +312,193 @@ def choose_metal(metal, selected_period, selected_dates=None, stock_ticker="AAPL
 # GRADIO 
 # ====================================================================================================
 
-with gr.Blocks() as demo:
+def build_metals_panel(demo, ticker_input, period_input, load_button):
+    with gr.Column():
 
-    gr.Markdown("## Stock vs Precious Metals Comparison")
-   
-   # User inputs
-    stock_input = gr.Textbox(
-        label="Enter a stock ticker",
-        value="AAPL",
-        placeholder="e.g. AAPL, TSLA, MSFT, NVDA"
-    )
-
-    metal_dropdown = gr.Dropdown(
-        choices=["Gold", "Silver", "Platinum"],
-        value="Gold",
-        label="Choose a precious metal"
-    )
-
-    period_dropdown = gr.Dropdown(
-        choices=["1mo", "3mo", "6mo", "1y", "2y", "5y"],
-        value="1mo",
-        label="Choose a time period"
-    )
-
-    metals_plot = gr.Plot(
-        label="Metals Comparison",
-        elem_id="zoom_chart"
-    )
-
-    # Recieve the slected date range from JavaScript
-    zoom_info = gr.Textbox(
-        label="Selected zoom dates",
-        value="Waiting for zoom...",
-        elem_id="zoom_dates"
-    )
-
-
-    # Updates when user zooms
-    zoom_info.change(
-        fn=choose_metal,
-        inputs=[metal_dropdown, period_dropdown, zoom_info, stock_input],
-        outputs=metals_plot
-    )
-
-    metal_dropdown.change(
-        fn=choose_metal,
-        inputs=[metal_dropdown, period_dropdown, gr.State(None), stock_input],
-        outputs=metals_plot
-    )
-
-    period_dropdown.change(
-        fn=choose_metal,
-        inputs=[metal_dropdown, period_dropdown, gr.State(None), stock_input],
-        outputs=metals_plot
-    )
-
-    stock_input.submit(
-        fn=choose_metal,
-        inputs=[metal_dropdown, period_dropdown, gr.State(None), stock_input],
-        outputs=metals_plot
-    )
-
-    # Show graph when dash opens
-    demo.load(
-        fn=choose_metal,
-        inputs=[metal_dropdown, period_dropdown, gr.State(None), stock_input],
-        outputs=metals_plot
-    )
+        gr.Markdown("## Stock vs Precious Metals Comparison")
     
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+     
+        
+
+        metal_dropdown = gr.Dropdown(
+            choices=["Gold", "Silver", "Platinum"],
+            value="Gold",
+            label="Choose a precious metal"
+        )
+
+
+        metals_plot = gr.Plot(
+            label="Metals Comparison",
+            elem_id="zoom_chart"
+        )
+
+        # Recieve the slected date range from JavaScript
+        zoom_info = gr.Textbox(
+            label="Selected zoom dates",
+            value="Waiting for zoom...",
+            elem_id="zoom_dates"
+        )
+
+
+        # Updates when user zooms
+        zoom_info.change(
+            fn=choose_metal,
+            inputs=[metal_dropdown, period_input, zoom_info, ticker_input],
+            outputs=metals_plot
+        )
+
+        metal_dropdown.change(
+            fn=choose_metal,
+            inputs=[metal_dropdown, period_input, gr.State(None), ticker_input],
+            outputs=metals_plot
+        )
+        load_button.click(
+            fn=choose_metal,
+            inputs=[metal_dropdown, period_input, gr.State(None), ticker_input],
+            outputs=metals_plot
+        )
+
+        period_input.change(
+            fn=choose_metal,
+            inputs=[metal_dropdown, period_input, gr.State(None), ticker_input],
+            outputs=metals_plot
+        )
+
+        ticker_input.submit(
+            fn=choose_metal,
+            inputs=[metal_dropdown, period_input, gr.State(None), ticker_input],
+            outputs=metals_plot
+        )
+
+        # Show graph when dash opens
+        demo.load(
+            fn=choose_metal,
+            inputs=[metal_dropdown, period_input, gr.State(None), ticker_input],
+            outputs=metals_plot
+        )
+        
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
 
 
 
 
-  
-  
-  
-# ====================================================================================================
-# AUTOMATIC ZOOM FUNCTIONALITY (JavaScript)
-# ====================================================================================================
-  
-  
-    # Listen for changes to the graph's date range
-    demo.load(
-        fn=None,
-        inputs=None,
-        outputs=None,
-        js="""
-        async () => {
+    
+    
+    
+    # ====================================================================================================
+    # AUTOMATIC ZOOM FUNCTIONALITY (JavaScript)
+    # ====================================================================================================
+    
+    
+        # Listen for changes to the graph's date range
+        demo.load(
+            fn=None,
+            inputs=None,
+            outputs=None,
+            js="""
+            async () => {
 
-            function attachZoomListener() {
-                const chart = document.querySelector(
-                    "#zoom_chart .js-plotly-plot"
-                );
+                function attachZoomListener() {
+                    const chart = document.querySelector(
+                        "#zoom_chart .js-plotly-plot"
+                    );
 
-                if (!chart || typeof chart.on !== "function") {
-                    return;
-                }
-
-                // Prevent duplicate listeners
-                if (chart.dataset.zoomListenerAttached === "true") {
-                    return;
-                }
-
-                chart.dataset.zoomListenerAttached = "true";
-
-                chart.on("plotly_relayout", (eventData) => {
-
-                    let start = eventData["xaxis.range[0]"];
-                    let end = eventData["xaxis.range[1]"];
-
-                    // Reset to the full date range when zooming out
-                    if (eventData["xaxis.autorange"] === true) {
-                        const fullRange = chart._fullData
-                            .flatMap(trace => trace.x || [])
-                            .map(date => new Date(date).getTime())
-                            .filter(Number.isFinite);
-
-                        if (fullRange.length > 0) {
-                            start = new Date(Math.min(...fullRange))
-                                .toISOString();
-                            end = new Date(Math.max(...fullRange))
-                                .toISOString();
-                        }
+                    if (!chart || typeof chart.on !== "function") {
+                        return;
                     }
 
-                    if (start && end) {
-                        const textbox = document.querySelector(
-                            "#zoom_dates textarea, #zoom_dates input"
-                        );
+                    // Prevent duplicate listeners
+                    if (chart.dataset.zoomListenerAttached === "true") {
+                        return;
+                    }
 
-                        if (textbox) {
-                            const setter = Object.getOwnPropertyDescriptor(
-                                Object.getPrototypeOf(textbox),
-                                "value"
-                            )?.set;
+                    chart.dataset.zoomListenerAttached = "true";
 
-                            if (setter) {
-                                setter.call(textbox, `${start} to ${end}`);
+                    chart.on("plotly_relayout", (eventData) => {
 
-                                textbox.dispatchEvent(
-                                    new Event("input", { bubbles: true })
-                                );
+                        let start = eventData["xaxis.range[0]"];
+                        let end = eventData["xaxis.range[1]"];
 
-                                textbox.dispatchEvent(
-                                    new Event("change", { bubbles: true })
-                                );
+                        // Reset to the full date range when zooming out
+                        if (eventData["xaxis.autorange"] === true) {
+                            const fullRange = chart._fullData
+                                .flatMap(trace => trace.x || [])
+                                .map(date => new Date(date).getTime())
+                                .filter(Number.isFinite);
+
+                            if (fullRange.length > 0) {
+                                start = new Date(Math.min(...fullRange))
+                                    .toISOString();
+                                end = new Date(Math.max(...fullRange))
+                                    .toISOString();
                             }
                         }
-                    }
+
+                        if (start && end) {
+                            const textbox = document.querySelector(
+                                "#zoom_dates textarea, #zoom_dates input"
+                            );
+
+                            if (textbox) {
+                                const setter = Object.getOwnPropertyDescriptor(
+                                    Object.getPrototypeOf(textbox),
+                                    "value"
+                                )?.set;
+
+                                if (setter) {
+                                    const formatDate = (date) =>
+                                        new Date(date).toISOString().slice(0, 10);
+
+                                    setter.call(
+                                       textbox,
+                                        `${formatDate(start)} to ${formatDate(end)}`
+                                    );
+
+                                    textbox.dispatchEvent(
+                                        new Event("input", { bubbles: true })
+                                    );
+
+                                    textbox.dispatchEvent(
+                                        new Event("change", { bubbles: true })
+                                    );
+                                }
+                            }
+                        }
+                    });
+
+                
+                }
+
+                setTimeout(attachZoomListener, 2000);
+
+                // keep unchanged
+                const observer = new MutationObserver(() => {
+                    attachZoomListener();
                 });
 
-            
+                const container = document.querySelector("#zoom_chart");
+
+                if (container) {
+                    observer.observe(container, {
+                        childList: true,
+                        subtree: true
+                    });
+                }
             }
-
-            setTimeout(attachZoomListener, 2000);
-
-            // keep unchanged
-            const observer = new MutationObserver(() => {
-                attachZoomListener();
-            });
-
-            const container = document.querySelector("#zoom_chart");
-
-            if (container) {
-                observer.observe(container, {
-                    childList: true,
-                    subtree: true
-                });
-            }
-        }
-        """
-    )
+            """
+        )
 
 
-demo.launch()
+# The metals panel will be launched through Graph_Launcher.ipynb
 
 
