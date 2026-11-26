@@ -315,7 +315,7 @@ title=dict(
 def build_metals_panel(demo, ticker_input, period_input, load_button):
     with gr.Column():
 
-        gr.Markdown("## Stock vs Precious Metals Comparison")
+        gr.Markdown("## Precious Metals Comparison")
     
      
         
@@ -376,7 +376,7 @@ def build_metals_panel(demo, ticker_input, period_input, load_button):
             inputs=[metal_dropdown, period_input, gr.State(None), ticker_input],
             outputs=metals_plot
         )
-        return metals_plot, metal_dropdown
+
     
     
     
@@ -498,7 +498,7 @@ def build_metals_panel(demo, ticker_input, period_input, load_button):
             """
         )
 
-
+        return metals_plot, metal_dropdown
 # The metals panel will be launched through Graph_Launcher.ipynb
 
 
