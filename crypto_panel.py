@@ -29,7 +29,7 @@ def make_crypto_chart(ticker, crypto, period, view):
     returns = df.pct_change().dropna()
     drawdown = (df / df.cummax() - 1) * 100  # fall from the highest price so far, in %
 
-    crypto_fig, crypto_ax = plt.subplots(figsize=(8, 3.2))
+    crypto_fig, crypto_ax = plt.subplots(figsize=(8, 4.5), dpi=100)
 
     if view == "Correlation":
         window = min(60, max(10, len(returns) // 3))  # 60 days, shorter for short periods
@@ -78,7 +78,7 @@ def make_crypto_chart(ticker, crypto, period, view):
 
 
 def placeholder_plot(message):
-    figure, axis = plt.subplots(figsize=(8, 3.2))
+    figure, axis = plt.subplots(figsize=(8, 4.5), dpi=100)
     axis.text(0.5, 0.5, message, ha="center", va="center", color="#666666")
     axis.set_title("Stock vs crypto")
     axis.set_axis_off()
@@ -104,8 +104,12 @@ def build_crypto_panel(ticker_input, period_input, load_button):
             crypto_input = gr.Radio(choices=["Bitcoin", "Ethereum"], value="Bitcoin", label="Crypto")
             view_input = gr.Radio(choices=["Falls from peak", "Correlation"],
                                   value="Falls from peak", label="View")
-        crypto_plot = gr.Plot(value=placeholder_plot("Enter a ticker and select Load charts"),
-                              label="Stock vs crypto")
+
+        crypto_plot = gr.Plot(
+            value=placeholder_plot("Enter a ticker and select Load charts"),
+            label="Stock vs crypto",
+            elem_classes=["dashboard-plot"]
+        )
 
     inputs = [ticker_input, period_input, crypto_input, view_input]
     load_button.click(fn=update_crypto_panel, inputs=inputs, outputs=[crypto_plot])

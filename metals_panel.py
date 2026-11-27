@@ -329,7 +329,8 @@ def build_metals_panel(demo, ticker_input, period_input, load_button):
 
         metals_plot = gr.Plot(
             label="Metals Comparison",
-            elem_id="zoom_chart"
+            elem_id="zoom_chart",
+            elem_classes=["dashboard-plot"]
         )
 
         # Recieve the slected date range from JavaScript

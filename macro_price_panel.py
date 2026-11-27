@@ -52,7 +52,7 @@ def make_price_chart(ticker, period, indicator):
 
     corr = close.corr(macro)  # how closely the two lines move together
 
-    price_fig, price_ax = plt.subplots(figsize=(8, 3.2))
+    price_fig, price_ax = plt.subplots(figsize=(8, 4.5), dpi=100)
     price_ax.plot(close.index, close, label="Close", color="#176B87", linewidth=1.8)
     price_ax.set_ylabel("Price")
 
@@ -74,7 +74,7 @@ def make_price_chart(ticker, period, indicator):
 
 
 def placeholder_plot(message):
-    figure, axis = plt.subplots(figsize=(8, 3.2))
+    figure, axis = plt.subplots(figsize=(8, 4.5), dpi=100)
     axis.text(0.5, 0.5, message, ha="center", va="center", color="#666666")
     axis.set_title("Closing price")
     axis.set_axis_off()
@@ -98,9 +98,11 @@ def build_price_panel(ticker_input, period_input, load_button):
         gr.Markdown("### Price")
         indicator_input = gr.Dropdown(choices=INDICATORS, value="10-year Treasury yield",
                                       label="Macro indicator")
-        price_plot = gr.Plot(value=placeholder_plot("Enter a ticker and select Load charts"),
-                             label="Closing price")
-
+    price_plot = gr.Plot(
+        value=placeholder_plot("Enter a ticker and select Load charts"),
+        label="Closing price",
+        elem_classes=["dashboard-plot"]
+    )
     inputs = [ticker_input, period_input, indicator_input]
     load_button.click(fn=update_price_panel, inputs=inputs, outputs=[price_plot])
     indicator_input.change(fn=update_price_panel, inputs=inputs, outputs=[price_plot])
