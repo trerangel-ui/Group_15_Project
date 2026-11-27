@@ -16,16 +16,25 @@ Users can select a stock ticker, choose a historical time period and explore fou
 
 The dashboard contains four main visualizations, displayed in the following order:
 
-### 1. Price – Stock Price vs Treasury Bond Yield
+### 1. Price – Stock Price vs Macro Indicators
 
-This graph compares the historical closing price of the selected stock with the 10-year Treasury bond yield.
+This graph compares the historical closing price of the selected stock with a selected macroeconomic indicator.
 
 Users can:
 - Select a stock ticker.
 - Choose a historical period.
-- Compare stock price movements with changes in the 10-year Treasury yield.
+- Select one of four macroeconomic indicators:
+  - **10-year Treasury yield:** tracks changes in the US 10-year Treasury yield.
+  - **Inflation (CPI, year on year):** shows the annual percentage change in the Consumer Price Index.
+  - **Unemployment rate:** tracks the US unemployment rate.
+  - **Fed funds rate:** shows the Federal Reserve's federal funds rate.
+- Compare stock price movements with changes in the selected macroeconomic indicator.
 
-The graph provides insight into how stock prices and government bond yields develop over the same period.
+The graph uses two vertical axes: the stock closing price is displayed on the left axis, while the selected macroeconomic indicator is displayed on the right axis.
+
+It also displays the latest available reading of the selected indicator and the correlation between the stock price and the indicator.
+
+This visualization helps users explore how stock prices relate to broader economic conditions and how these relationships may differ depending on the selected indicator.
 
 ### 2. Stock vs Precious Metals Comparison
 
@@ -71,7 +80,7 @@ This allows users to investigate how cryptocurrency movements compare with stock
 The main value of our dashboard is that it brings different types of financial information together in one interactive environment.
 
 Users can explore questions such as:
-- How does a selected stock perform compared to the 10-year Treasury yield?
+- How does a selected stock perform compared to different macroeconomic indicators?
 - Does a selected stock move in a similar direction to Gold, Silver or Platinum?
 - How does a stock compare with Bitcoin or Ethereum?
 - How do stocks, bonds, precious metals and real estate perform over the same period?
@@ -81,13 +90,14 @@ Our dashboard does not provide financial advice or tell users what to invest in.
 
 ## Data Sources and Technologies
 
-The project uses financial market data retrieved through Yahoo Finance.
+The project uses financial market data retrieved through Yahoo Finance and macroeconomic data retrieved from the Federal Reserve Economic Data (FRED) database.
 
 The main technologies used in this project include:
 
 - **Python** – Main programming language.
 - **Pandas** – Data handling and analysis.
 - **yfinance** – Retrieving financial market data.
+- **FRED** – Retrieving macroeconomic data, including inflation, unemployment and the federal funds rate.
 - **Matplotlib** – Data visualization.
 - **Plotly** – Interactive visualizations.
 - **Gradio** – Building the interactive dashboard.
